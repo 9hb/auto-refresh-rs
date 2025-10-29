@@ -11,17 +11,17 @@ fn main() {
     let url = match args.next() {
         Some(u) => u,
         None => {
-            eprintln!("usage: <url> [interval_in_seconds]");
+            eprintln!("usage: <url> [interval_in_milliseconds]");
             return;
         }
     };
-    let interval: u64 = args
+    let interval_ms: u64 = args
         .next()
         .and_then(|s| s.parse::<u64>().ok())
-        .unwrap_or(2);
+        .unwrap_or(2000);
 
-    if interval == 0 {
-        eprintln!("error: interval must be an integer >= 1 (seconds)");
+    if interval_ms == 0 {
+        eprintln!("error: interval must be an integer >= 1 (milliseconds)");
         return;
     }
 
@@ -37,9 +37,9 @@ fn main() {
     }
 
     println!(
-        "\nstarting page refreshing for {} with interval {}s\n(ctrl+c to stop)\n",
+        "\nstarting page refreshing for {} with interval {}ms\n(ctrl+c to stop)\n",
         url,
-        interval
+        interval_ms
     );
 
     // main loop
@@ -67,10 +67,13 @@ fn main() {
             }
         }
 
-        let mut slept = 0;
-        while slept < interval && !stop_flag.load(Ordering::SeqCst) {
-            thread::sleep(Duration::from_secs(1));
-            slept += 1;
+        let mut slept_ms = 0u64;
+        const STEP_MS: u64 = 100;
+        while slept_ms < interval_ms && !stop_flag.load(Ordering::SeqCst) {
+            let remaining = interval_ms.saturating_sub(slept_ms);
+            let until = std::cmp::min(STEP_MS, remaining);
+            thread::sleep(Duration::from_millis(until));
+            slept_ms += until;
         }
     }
 }
